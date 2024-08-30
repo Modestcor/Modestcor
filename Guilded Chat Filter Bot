@@ -1,0 +1,62 @@
+const axios = require('axios');
+const WebSocket = require('ws');
+
+const GUILDED_API_URL = 'https://www.guilded.gg/api/v1';
+const GUILD_ID = 'GUILD_ID'; // Your Guild ID
+const BOT_TOKEN = 'BOT_TOKEN'; // Your Bot Token
+
+const filteredWords = ['badword1', 'badword2']; // Replace with your actual words
+const responseMessage = 'Your message contains prohibited content and has been removed.'; // Customize your response message
+
+const ws = new WebSocket('wss://www.guilded.gg/api/v1/websocket'); // WebSocket URL
+
+ws.on('open', () => {
+    console.log('Connected to Guilded WebSocket');
+    // Authenticate your bot
+    ws.send(JSON.stringify({
+        op: 1,
+        d: {
+            token: BOT_TOKEN,
+            guildId: GUILD_ID
+        }
+    }));
+});
+
+ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+});
+
+ws.on('message', async (data) => {
+    const message = JSON.parse(data);
+
+    // Check if the message is a new message event
+    if (message.op === 0 && message.t === 'MESSAGE_CREATE') {
+        const { content, userId, channelId, id } = message.d;
+
+        // Check if the message contains any filtered words
+        if (filteredWords.some(word => content.includes(word))) {
+            await deleteMessage(channelId, id);
+            await sendPrivateMessage(userId, responseMessage);
+        }
+    }
+});
+
+async function deleteMessage(channelId, messageId) {
+    await axios.delete(`${GUILDED_API_URL}/channels/${channelId}/messages/${messageId}`, {
+        headers: {
+            'Authorization': `Bearer ${BOT_TOKEN}`
+        }
+    });
+}
+
+async function sendPrivateMessage(userId, content) {
+    await axios.post(`${GUILDED_API_URL}/users/${userId}/messages`, {
+        content: content
+    }, {
+        headers: {
+            'Authorization': `Bearer ${BOT_TOKEN}`
+        }
+    });
+}
+
+//This Code has been made by @Modestcor on Github.
